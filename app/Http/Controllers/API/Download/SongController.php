@@ -3,33 +3,26 @@
 namespace App\Http\Controllers\API\Download;
 
 use App\Http\Requests\API\Download\SongRequest;
-use App\Repositories\SongRepository;
-use App\Services\DownloadService;
+use App\Models\Song;
+use Download;
+use Exception;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
-/**
- * @group 6. Download
- */
 class SongController extends Controller
 {
-    private $songRepository;
-
-    public function __construct(DownloadService $downloadService, SongRepository $songRepository)
-    {
-        parent::__construct($downloadService);
-        $this->songRepository = $songRepository;
-    }
-
     /**
-     * Download one or several songs.
+     * Download a song or multiple songs.
      *
-     * @queryParam songs array An array of song IDs
+     * @param SongRequest $request
      *
-     * @response []
+     * @throws Exception
+     *
+     * @return BinaryFileResponse
      */
-    public function show(SongRequest $request)
+    public function download(SongRequest $request)
     {
-        $songs = $this->songRepository->getByIds($request->songs);
+        $songs = Song::whereIn('id', $request->songs)->get();
 
-        return response()->download($this->downloadService->from($songs));
+        return response()->download(Download::from($songs));
     }
 }

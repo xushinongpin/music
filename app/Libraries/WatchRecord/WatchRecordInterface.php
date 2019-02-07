@@ -4,15 +4,15 @@ namespace App\Libraries\WatchRecord;
 
 interface WatchRecordInterface
 {
-    public function parse(string $string);
+    public function parse($string);
 
-    public function getPath(): string;
+    public function getPath();
 
-    public function isDeleted(): bool;
+    public function isDeleted();
 
-    public function isNewOrModified(): bool;
+    public function isNewOrModified();
 
-    public function isDirectory(): bool;
+    public function isDirectory();
 
-    public function isFile(): bool;
+    public function isFile();
 }

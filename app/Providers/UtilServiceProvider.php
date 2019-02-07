@@ -7,10 +7,25 @@ use Illuminate\Support\ServiceProvider;
 
 class UtilServiceProvider extends ServiceProvider
 {
-    public function register(): void
+    /**
+     * Bootstrap the application services.
+     *
+     * @return void
+     */
+    public function boot()
     {
-        app()->singleton('Util', static function (): Util {
-            return app(Util::class);
+        //
+    }
+
+    /**
+     * Register the application services.
+     *
+     * @return void
+     */
+    public function register()
+    {
+        app()->singleton('Util', function () {
+            return new Util();
         });
     }
 }

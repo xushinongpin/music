@@ -6,7 +6,17 @@ use App\Http\Requests\API\Request as BaseRequest;
 
 class Request extends BaseRequest
 {
-    public function rules(): array
+    /**
+     * Determine if the user is authorized to make this request.
+     *
+     * @return bool
+     */
+    public function authorize()
+    {
+        return true;
+    }
+
+    public function rules()
     {
         return [
             'bucket' => 'required',

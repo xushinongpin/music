@@ -3,8 +3,6 @@
 namespace Tests\Feature\ObjectStorage;
 
 use App\Events\LibraryChanged;
-use App\Models\Song;
-use Exception;
 use Illuminate\Foundation\Testing\WithoutMiddleware;
 use Tests\Feature\TestCase;
 
@@ -12,16 +10,14 @@ class S3Test extends TestCase
 {
     use WithoutMiddleware;
 
-    /**
-     * @throws Exception
-     */
     public function setUp()
     {
         parent::setUp();
         $this->disableMiddlewareForAllTests();
     }
 
-    public function testStoringASong()
+    /** @test */
+    public function a_song_can_be_added()
     {
         $this->post('api/os/s3/song', [
             'bucket' => 'koel',
@@ -37,16 +33,18 @@ class S3Test extends TestCase
         ])->seeInDatabase('songs', ['path' => 's3://koel/sample.mp3']);
     }
 
-    /**
-     * @throws Exception
-     */
-    public function testRemovingASong()
+    /** @test */
+    public function a_song_can_be_removed()
     {
         $this->expectsEvents(LibraryChanged::class);
-
-        factory(Song::class)->create([
-            'path' => 's3://koel/sample.mp3',
-        ]);
+        $this->post('api/os/s3/song', [
+            'bucket' => 'koel',
+            'key' => 'sample.mp3',
+            'tags' => [
+                'lyrics' => '',
+                'duration' => 10,
+            ],
+        ])->seeInDatabase('songs', ['path' => 's3://koel/sample.mp3']);
 
         $this->delete('api/os/s3/song', [
             'bucket' => 'koel',

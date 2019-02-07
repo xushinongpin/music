@@ -2,72 +2,126 @@
 
 namespace Tests\Feature;
 
+use App\Events\SongLikeToggled;
+use App\Events\SongStartedPlaying;
+use App\Http\Controllers\API\LastfmController;
+use App\Listeners\LoveTrackOnLastfm;
+use App\Listeners\UpdateLastfmNowPlaying;
+use App\Models\Interaction;
+use App\Models\Song;
 use App\Models\User;
-use App\Services\LastfmService;
+use App\Services\Lastfm;
 use GuzzleHttp\Client;
 use GuzzleHttp\Psr7\Response;
-use Illuminate\Contracts\Cache\Repository as Cache;
-use Illuminate\Log\Logger;
-use Mockery;
+use Illuminate\Contracts\Auth\Guard;
+use Illuminate\Foundation\Testing\WithoutMiddleware;
+use Illuminate\Http\Request;
+use Illuminate\Routing\Redirector;
+use Mockery as m;
 use Tymon\JWTAuth\JWTAuth;
 
 class LastfmTest extends TestCase
 {
-    public function testGetSessionKey(): void
+    use WithoutMiddleware;
+
+    protected function tearDown()
     {
-        /** @var Client $client */
-        $client = Mockery::mock(Client::class, [
+        m::close();
+        parent::tearDown();
+    }
+
+    public function testGetSessionKey()
+    {
+        $client = m::mock(Client::class, [
             'get' => new Response(200, [], file_get_contents(__DIR__.'../../blobs/lastfm/session-key.xml')),
         ]);
 
-        $service = new LastfmService($client, app(Cache::class), app(Logger::class));
-        self::assertEquals('foo', $service->getSessionKey('bar'));
+        $api = new Lastfm(null, null, $client);
+
+        $this->assertEquals('foo', $api->getSessionKey('bar'));
     }
 
-    public function testSetSessionKey(): void
+    /** @test */
+    public function session_key_can_be_set()
     {
         $user = factory(User::class)->create();
-        $this->postAsUser('api/lastfm/session-key', ['key' => 'foo'], $user)
-            ->assertResponseOk();
-
+        $this->postAsUser('api/lastfm/session-key', ['key' => 'foo'], $user);
         $user = User::find($user->id);
-        self::assertEquals('foo', $user->lastfm_session_key);
+        $this->assertEquals('foo', $user->lastfm_session_key);
     }
 
-    public function testConnectToLastfm(): void
+    /** @test */
+    public function user_can_connect_to_lastfm()
     {
-        $this->mockIocDependency(JWTAuth::class, [
-            'parseToken' => null,
-            'getToken' => 'foo',
+        $redirector = m::mock(Redirector::class);
+        $redirector->shouldReceive('to')->once();
+
+        $guard = m::mock(Guard::class, ['user' => factory(User::class)->create()]);
+        $auth = m::mock(JWTAuth::class, [
+            'parseToken' => '',
+            'getToken' => '',
         ]);
 
-        $this->getAsUser('api/lastfm/connect')
-            ->assertRedirectedTo('https://www.last.fm/api/auth/?api_key=foo&cb=http%3A%2F%2Flocalhost%2Fapi%2Flastfm%2Fcallback%3Fjwt-token%3Dfoo');
+        (new LastfmController($guard))->connect($redirector, new Lastfm(), $auth);
     }
 
-    public function testRetrieveAndStoreSessionKey(): void
+    /** @test */
+    public function lastfm_session_key_can_be_retrieved_and_stored()
     {
-        $lastfm = $this->mockIocDependency(LastfmService::class);
-        $lastfm->shouldReceive('getSessionKey')
-            ->once()
-            ->with('foo')
-            ->andReturn('bar');
+        $request = m::mock(Request::class);
+        $request->token = 'foo';
+        $lastfm = m::mock(Lastfm::class, ['getSessionKey' => 'bar']);
 
-        /** @var User $user */
         $user = factory(User::class)->create();
-        $this->getAsUser('api/lastfm/callback?token=foo', $user);
-        $user->refresh();
+        $guard = m::mock(Guard::class, ['user' => $user]);
+
+        (new LastfmController($guard))->callback($request, $lastfm);
 
         $this->assertEquals('bar', $user->lastfm_session_key);
     }
 
-    public function testDisconnectUser(): void
+    /** @test */
+    public function user_can_disconnect_from_lastfm()
     {
-        /** @var User $user */
         $user = factory(User::class)->create(['preferences' => ['lastfm_session_key' => 'bar']]);
         $this->deleteAsUser('api/lastfm/disconnect', [], $user);
-        $user->refresh();
-
+        $user = User::find($user->id);
         $this->assertNull($user->lastfm_session_key);
+    }
+
+    /** @test */
+    public function user_can_love_a_track_on_lastfm()
+    {
+        $this->withoutEvents();
+        $this->createSampleMediaSet();
+
+        $user = factory(User::class)->create(['preferences' => ['lastfm_session_key' => 'bar']]);
+
+        $interaction = Interaction::create([
+            'user_id' => $user->id,
+            'song_id' => Song::first()->id,
+        ]);
+
+        $lastfm = m::mock(Lastfm::class, ['enabled' => true]);
+        $lastfm->shouldReceive('toggleLoveTrack')
+            ->with($interaction->song->title, $interaction->song->album->artist->name, 'bar', false);
+
+        (new LoveTrackOnLastfm($lastfm))->handle(new SongLikeToggled($interaction, $user));
+    }
+
+    /** @test */
+    public function user_now_playing_status_can_be_updated_to_lastfm()
+    {
+        $this->withoutEvents();
+        $this->createSampleMediaSet();
+
+        $user = factory(User::class)->create(['preferences' => ['lastfm_session_key' => 'bar']]);
+        $song = Song::first();
+
+        $lastfm = m::mock(Lastfm::class, ['enabled' => true]);
+        $lastfm->shouldReceive('updateNowPlaying')
+            ->with($song->album->artist->name, $song->title, $song->album->name, $song->length, 'bar');
+
+        (new UpdateLastfmNowPlaying($lastfm))->handle(new SongStartedPlaying($song, $user));
     }
 }

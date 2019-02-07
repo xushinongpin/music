@@ -2,15 +2,30 @@
 
 namespace App\Providers;
 
-use App\Services\DownloadService;
+use App\Services\Download;
 use Illuminate\Support\ServiceProvider;
 
 class DownloadServiceProvider extends ServiceProvider
 {
-    public function register(): void
+    /**
+     * Bootstrap the application services.
+     *
+     * @return void
+     */
+    public function boot()
     {
-        app()->singleton('Download', static function (): DownloadService {
-            return app(DownloadService::class);
+        //
+    }
+
+    /**
+     * Register the application services.
+     *
+     * @return void
+     */
+    public function register()
+    {
+        app()->singleton('Download', function () {
+            return new Download();
         });
     }
 }

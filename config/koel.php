@@ -17,8 +17,6 @@ return [
         'password' => env('ADMIN_PASSWORD'),
     ],
 
-    'media_path' => env('MEDIA_PATH'),
-
     /*
     |--------------------------------------------------------------------------
     | Sync Options
@@ -60,7 +58,6 @@ return [
 
     'youtube' => [
         'key' => env('YOUTUBE_API_KEY'),
-        'endpoint' => 'https://www.googleapis.com/youtube/v3',
     ],
 
     /*
@@ -75,7 +72,6 @@ return [
     'lastfm' => [
         'key' => env('LASTFM_API_KEY'),
         'secret' => env('LASTFM_API_SECRET'),
-        'endpoint' => 'https://ws.audioscrobbler.com/2.0',
     ],
 
     /*
@@ -117,7 +113,6 @@ return [
     'itunes' => [
         'enabled' => env('USE_ITUNES', true),
         'affiliate_id' => '1000lsGu',
-        'endpoint' => 'https://itunes.apple.com/search',
     ],
 
     'cache_media' => env('CACHE_MEDIA', true),

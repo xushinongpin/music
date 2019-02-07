@@ -3,22 +3,25 @@
 namespace App\Http\Controllers\API\Download;
 
 use App\Models\Artist;
+use Download;
+use Exception;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
-/**
- * @group 6. Download
- */
 class ArtistController extends Controller
 {
     /**
      * Download all songs by an artist.
-     *
      * Don't see why one would need this, really.
      * Let's pray to God the user doesn't trigger this on Elvis.
      *
-     * @response []
+     * @param Artist $artist
+     *
+     * @throws Exception
+     *
+     * @return BinaryFileResponse
      */
-    public function show(Artist $artist)
+    public function download(Artist $artist)
     {
-        return response()->download($this->downloadService->from($artist));
+        return response()->download(Download::from($artist));
     }
 }

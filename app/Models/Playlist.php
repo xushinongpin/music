@@ -9,38 +9,38 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 /**
- * @property int        $user_id
- * @property Collection $songs
- * @property int        $id
- * @property array      $rules
- * @property bool       $is_smart
- * @property string     $name
- * @property user       $user
+ * @property int   user_id
+ * @property Collection songs
  */
 class Playlist extends Model
 {
     use CanFilterByUser;
 
     protected $hidden = ['user_id', 'created_at', 'updated_at'];
+
     protected $guarded = ['id'];
+
     protected $casts = [
         'user_id' => 'int',
-        'rules' => 'array',
     ];
-    protected $appends = ['is_smart'];
 
-    public function songs(): BelongsToMany
+    /**
+     * A playlist can have many songs.
+     *
+     * @return BelongsToMany
+     */
+    public function songs()
     {
         return $this->belongsToMany(Song::class);
     }
 
-    public function user(): BelongsTo
+    /**
+     * A playlist belongs to a user.
+     *
+     * @return BelongsTo
+     */
+    public function user()
     {
         return $this->belongsTo(User::class);
-    }
-
-    public function getIsSmartAttribute(): bool
-    {
-        return (bool) $this->rules;
     }
 }

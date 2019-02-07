@@ -2,71 +2,75 @@
 
 namespace App\Http\Controllers\API;
 
-use App\Http\Requests\API\LastfmCallbackRequest;
-use App\Http\Requests\API\LastfmSetSessionKeyRequest;
-use App\Services\LastfmService;
+use App\Services\Lastfm;
 use Illuminate\Contracts\Auth\Guard;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Response;
-use Tymon\JWTAuth\Exceptions\JWTException;
+use Illuminate\Routing\Redirector;
 use Tymon\JWTAuth\JWTAuth;
 
-/**
- * @group Last.fm integration
- */
 class LastfmController extends Controller
 {
+    /*
+     * The Guard implementation.
+     *
+     * @var Guard
+     */
     protected $auth;
-    private $lastfmService;
-    private $jwtAuth;
 
-    public function __construct(Guard $auth, LastfmService $lastfmService, JWTAuth $jwtAuth)
+    /**
+     * Construct the controller and inject the current auth.
+     *
+     * @param Guard $auth
+     */
+    public function __construct(Guard $auth)
     {
         $this->auth = $auth;
-        $this->lastfmService = $lastfmService;
-        $this->jwtAuth = $jwtAuth;
     }
 
     /**
-     * Connect to Last.fm.
+     * Connect the current user to Last.fm.
      *
-     * [Connect](https://www.last.fm/api/authentication) the current user to Last.fm.
-     * This is actually NOT an API request. The application should instead redirect the current user to this route,
-     * which will send them to Last.fm for authentication. After authentication is successful, the user will be
-     * redirected back to `api/lastfm/callback?token=<Last.fm token>`.
+     * @param Redirector $redirector
+     * @param Lastfm     $lastfm
+     * @param JWTAuth    $auth
      *
-     * @queryParam jwt-token required The JWT token of the user.
-     *
-     * @throws JWTException
-     *
-     * @return RedirectResponse
+     * @return Redirector|RedirectResponse
      */
-    public function connect()
+    public function connect(Redirector $redirector, Lastfm $lastfm, JWTAuth $auth = null)
     {
-        abort_unless($this->lastfmService->enabled(), 401, 'Koel is not configured to use with Last.fm yet.');
+        abort_unless($lastfm->enabled(), 401, 'Koel is not configured to use with Last.fm yet.');
+
+        $auth = $auth ?: $this->app['tymon.jwt.auth'];
 
         // A workaround to make sure Tymon's JWTAuth get the correct token via our custom
         // "jwt-token" query string instead of the default "token".
         // This is due to the problem that Last.fm returns the token via "token" as well.
-        $this->jwtAuth->parseToken('', '', 'jwt-token');
+        $auth->parseToken('', '', 'jwt-token');
 
-        $callbackUrl = urlencode(sprintf('%s?jwt-token=%s', route('lastfm.callback'), $this->jwtAuth->getToken()));
-        $url = sprintf('https://www.last.fm/api/auth/?api_key=%s&cb=%s', $this->lastfmService->getKey(), $callbackUrl);
-
-        return redirect($url);
+        return $redirector->to(
+            'https://www.last.fm/api/auth/?api_key='
+            .$lastfm->getKey()
+            .'&cb='.urlencode(route('lastfm.callback').'?jwt-token='.$auth->getToken())
+        );
     }
 
     /**
      * Serve the callback request from Last.fm.
      *
+     * @param Request $request
+     * @param Lastfm  $lastfm
+     *
      * @return Response
      */
-    public function callback(LastfmCallbackRequest $request)
+    public function callback(Request $request, Lastfm $lastfm)
     {
-        $sessionKey = $this->lastfmService->getSessionKey($request->token);
+        abort_unless($token = $request->token, 500, 'Something wrong happened.');
 
-        abort_unless($sessionKey, 500, 'Invalid token key.');
+        // Get the session key using the obtained token.
+        abort_unless($sessionKey = $lastfm->getSessionKey($token), 500, 'Invalid token key.');
 
         $this->auth->user()->savePreference('lastfm_session_key', $sessionKey);
 
@@ -74,19 +78,13 @@ class LastfmController extends Controller
     }
 
     /**
-     * Set Last.fm session key.
+     * Set the Last.fm session key of the current user.
      *
-     * Set the Last.fm session key for the current user. This call should be made after the user is
-     * [connected to Last.fm](https://www.last.fm/api/authentication).
-     *
-     * @bodyParam key string required The Last.fm [session key](https://www.last.fm/api/show/auth.getSession).
-     * @response []
-     *
-     * @param LastfmSetSessionKeyRequest $request
+     * @param Request $request
      *
      * @return JsonResponse
      */
-    public function setSessionKey(LastfmSetSessionKeyRequest $request)
+    public function setSessionKey(Request $request)
     {
         $this->auth->user()->savePreference('lastfm_session_key', trim($request->key));
 
@@ -100,8 +98,6 @@ class LastfmController extends Controller
      */
     public function disconnect()
     {
-        $this->auth->user()->deletePreference('lastfm_session_key');
-
-        return response()->json();
+        return response()->json($this->auth->user()->deletePreference('lastfm_session_key'));
     }
 }

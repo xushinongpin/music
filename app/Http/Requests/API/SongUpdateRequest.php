@@ -3,17 +3,27 @@
 namespace App\Http\Requests\API;
 
 /**
- * @property string[] $songs
- * @property mixed[] $data
+ * @property array songs
+ * @property array data
  */
 class SongUpdateRequest extends Request
 {
-    public function authorize(): bool
+    /**
+     * Determine if the user is authorized to make this request.
+     *
+     * @return bool
+     */
+    public function authorize()
     {
         return $this->user()->is_admin;
     }
 
-    public function rules(): array
+    /**
+     * Get the validation rules that apply to the request.
+     *
+     * @return array
+     */
+    public function rules()
     {
         return [
             'data' => 'required|array',

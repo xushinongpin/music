@@ -5,29 +5,27 @@ namespace Tests\Feature;
 use App\Models\Playlist;
 use App\Models\Song;
 use App\Models\User;
-use Exception;
 
 class PlaylistTest extends TestCase
 {
-    /**
-     * @throws Exception
-     */
     public function setUp()
     {
         parent::setUp();
         $this->createSampleMediaSet();
     }
 
-    public function testCreatingPlaylist()
+    /** @test */
+    public function user_can_create_a_playlist()
     {
         $user = factory(User::class)->create();
+
+        // Let's create a playlist with 3 songs
         $songs = Song::orderBy('id')->take(3)->get();
 
         $this->postAsUser('api/playlist', [
-            'name' => 'Foo Bar',
-            'songs' => $songs->pluck('id')->toArray(),
-            'rules' => [],
-        ], $user);
+                'name' => 'Foo Bar',
+                'songs' => $songs->pluck('id')->toArray(),
+            ], $user);
 
         $this->seeInDatabase('playlists', [
             'user_id' => $user->id,

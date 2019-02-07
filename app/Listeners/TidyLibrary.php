@@ -2,23 +2,23 @@
 
 namespace App\Listeners;
 
-use App\Services\MediaSyncService;
-use Exception;
+use Media;
 
 class TidyLibrary
 {
-    private $mediaSyncService;
-
-    public function __construct(MediaSyncService $mediaSyncService)
+    /**
+     * Create the event listener.
+     */
+    public function __construct()
     {
-        $this->mediaSyncService = $mediaSyncService;
     }
 
     /**
-     * @throws Exception
+     * Fired every time a LibraryChanged event is triggered.
+     * Tidies up our lib.
      */
     public function handle()
     {
-        $this->mediaSyncService->tidy();
+        Media::tidy();
     }
 }

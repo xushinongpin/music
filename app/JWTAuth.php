@@ -21,7 +21,7 @@ class JWTAuth extends BaseJWTAuth
     /**
      * {@inheritdoc}
      */
-    public function parseToken($method = 'bearer', $header = 'authorization', $query = 'jwt-token'): BaseJWTAuth
+    public function parseToken($method = 'bearer', $header = 'authorization', $query = 'jwt-token')
     {
         return parent::parseToken($method, $header, $query);
     }

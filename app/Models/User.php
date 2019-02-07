@@ -7,43 +7,76 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
 /**
- * @property array  $preferences
- * @property int    $id
- * @property bool   $is_admin
- * @property string $lastfm_session_key
+ * @property array  preferences
+ * @property int    id
+ * @property bool   is_admin
+ * @property string lastfm_session_key
  */
 class User extends Authenticatable
 {
     use Notifiable;
 
     /**
+     * The database table used by the model.
+     *
+     * @var string
+     */
+    protected $table = 'users';
+
+    /**
      * The preferences that we don't want to show to the client.
      *
      * @var array
      */
-    private const HIDDEN_PREFERENCES = ['lastfm_session_key'];
+    protected $hiddenPreferences = ['lastfm_session_key'];
 
+    /**
+     * The attributes that are protected from mass assign.
+     *
+     * @var array
+     */
     protected $guarded = ['id'];
+
     protected $casts = [
         'id' => 'int',
         'is_admin' => 'bool',
     ];
+
+    /**
+     * The attributes excluded from the model's JSON form.
+     *
+     * @var array
+     */
     protected $hidden = ['password', 'remember_token', 'created_at', 'updated_at'];
 
-    public function playlists(): HasMany
+    /**
+     * A user can have many playlists.
+     *
+     * @return HasMany
+     */
+    public function playlists()
     {
         return $this->hasMany(Playlist::class);
     }
 
-    public function interactions(): HasMany
+    /**
+     * A user can make multiple interactions.
+     *
+     * @return HasMany
+     */
+    public function interactions()
     {
         return $this->hasMany(Interaction::class);
     }
 
     /**
-     * @return mixed|null
+     * Get a preference item of the current user.
+     *
+     * @param string $key
+     *
+     * @return string|null
      */
-    public function getPreference(string $key)
+    public function getPreference($key)
     {
         // We can't use $this->preferences directly, since the data has been tampered
         // by getPreferencesAttribute().
@@ -51,9 +84,12 @@ class User extends Authenticatable
     }
 
     /**
-     * @param mixed $val
+     * Save a user preference.
+     *
+     * @param string $key
+     * @param string $val
      */
-    public function savePreference(string $key, $val): void
+    public function savePreference($key, $val)
     {
         $preferences = $this->preferences;
         $preferences[$key] = $val;
@@ -65,16 +101,22 @@ class User extends Authenticatable
     /**
      * An alias to savePreference().
      *
-     * @param mixed $val
+     * @see $this::savePreference
      *
-     * @see self::savePreference
+     * @param $key
+     * @param $val
      */
-    public function setPreference(string $key, $val): void
+    public function setPreference($key, $val)
     {
-        $this->savePreference($key, $val);
+        return $this->savePreference($key, $val);
     }
 
-    public function deletePreference(string $key): void
+    /**
+     * Delete a preference.
+     *
+     * @param string $key
+     */
+    public function deletePreference($key)
     {
         $preferences = $this->preferences;
         array_forget($preferences, $key);
@@ -84,8 +126,10 @@ class User extends Authenticatable
 
     /**
      * Determine if the user is connected to Last.fm.
+     *
+     * @return bool
      */
-    public function connectedToLastfm(): bool
+    public function connectedToLastfm()
     {
         return (bool) $this->lastfm_session_key;
     }
@@ -95,7 +139,7 @@ class User extends Authenticatable
      *
      * @return string|null The key if found, or null if user isn't connected to Last.fm
      */
-    public function getLastfmSessionKeyAttribute(): ?string
+    public function getLastfmSessionKeyAttribute()
     {
         return $this->getPreference('lastfm_session_key');
     }
@@ -103,9 +147,9 @@ class User extends Authenticatable
     /**
      * User preferences are stored as a serialized associative array.
      *
-     * @param mixed[] $value
+     * @param array $value
      */
-    public function setPreferencesAttribute(array $value): void
+    public function setPreferencesAttribute($value)
     {
         $this->attributes['preferences'] = serialize($value);
     }
@@ -113,14 +157,16 @@ class User extends Authenticatable
     /**
      * Unserialize the user preferences back to an array before returning.
      *
-     * @return mixed[]
+     * @param string $value
+     *
+     * @return array
      */
-    public function getPreferencesAttribute(?string $value): array
+    public function getPreferencesAttribute($value)
     {
         $preferences = unserialize($value) ?: [];
 
         // Hide sensitive data from returned preferences.
-        foreach (self::HIDDEN_PREFERENCES as $key) {
+        foreach ($this->hiddenPreferences as $key) {
             if (array_key_exists($key, $preferences)) {
                 $preferences[$key] = 'hidden';
             }

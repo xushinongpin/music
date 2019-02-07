@@ -6,36 +6,25 @@ use App\Models\Album;
 use App\Models\Artist;
 use App\Models\Song;
 use App\Models\User;
-use Exception;
-use Illuminate\Foundation\Testing\DatabaseTransactions;
+use JWTAuth;
+use Laravel\BrowserKitTesting\DatabaseTransactions;
 use Laravel\BrowserKitTesting\TestCase as BaseTestCase;
-use Mockery;
 use Tests\CreatesApplication;
-use Tests\Traits\InteractsWithIoc;
-use Tymon\JWTAuth\JWTAuth;
 
 abstract class TestCase extends BaseTestCase
 {
-    use CreatesApplication, DatabaseTransactions, InteractsWithIoc;
-
-    /** @var JWTAuth */
-    private $auth;
+    use CreatesApplication, DatabaseTransactions;
 
     public function setUp()
     {
         parent::setUp();
-
-        $this->auth = app(JWTAuth::class);
-
         $this->prepareForTests();
     }
 
     /**
      * Create a sample media set, with a complete artist+album+song trio.
-     *
-     * @throws Exception
      */
-    protected function createSampleMediaSet(): void
+    protected function createSampleMediaSet()
     {
         $artist = factory(Artist::class)->create();
 
@@ -53,44 +42,47 @@ abstract class TestCase extends BaseTestCase
         }
     }
 
-    protected function getAsUser($url, $user = null): self
+    protected function getAsUser($url, $user = null)
     {
+        if (!$user) {
+            $user = factory(User::class)->create();
+        }
+
         return $this->get($url, [
-            'Authorization' => 'Bearer '.$this->generateJwtToken($user),
+            'Authorization' => 'Bearer '.JWTAuth::fromUser($user),
         ]);
     }
 
-    protected function deleteAsUser($url, $data = [], $user = null): self
+    protected function deleteAsUser($url, $data = [], $user = null)
     {
+        if (!$user) {
+            $user = factory(User::class)->create();
+        }
+
         return $this->delete($url, $data, [
-            'Authorization' => 'Bearer '.$this->generateJwtToken($user),
+            'Authorization' => 'Bearer '.JWTAuth::fromUser($user),
         ]);
     }
 
-    protected function postAsUser($url, $data, $user = null): self
+    protected function postAsUser($url, $data, $user = null)
     {
+        if (!$user) {
+            $user = factory(User::class)->create();
+        }
+
         return $this->post($url, $data, [
-            'Authorization' => 'Bearer '.$this->generateJwtToken($user),
+            'Authorization' => 'Bearer '.JWTAuth::fromUser($user),
         ]);
     }
 
-    protected function putAsUser($url, $data, $user = null): self
+    protected function putAsUser($url, $data, $user = null)
     {
+        if (!$user) {
+            $user = factory(User::class)->create();
+        }
+
         return $this->put($url, $data, [
-            'Authorization' => 'Bearer '.$this->generateJwtToken($user),
+            'Authorization' => 'Bearer '.JWTAuth::fromUser($user),
         ]);
-    }
-
-    private function generateJwtToken(?User $user): string
-    {
-        return $this->auth->fromUser($user ?: factory(User::class)->create());
-    }
-
-    protected function tearDown()
-    {
-        $this->addToAssertionCount(Mockery::getContainer()->mockery_getExpectationCount());
-
-        Mockery::close();
-        parent::tearDown();
     }
 }

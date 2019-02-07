@@ -2,8 +2,12 @@
 
 namespace App;
 
+use Cache;
+use Exception;
+use GuzzleHttp\Client;
 use Illuminate\Foundation\Application as IlluminateApplication;
 use InvalidArgumentException;
+use Log;
 
 /**
  * Extends \Illuminate\Foundation\Application to override some defaults.
@@ -15,7 +19,7 @@ class Application extends IlluminateApplication
      *
      * @link https://github.com/phanan/koel/releases
      */
-    public const KOEL_VERSION = 'v3.8.0';
+    const KOEL_VERSION = 'v3.7.0';
 
     /**
      * We have merged public path and base path.
@@ -31,9 +35,14 @@ class Application extends IlluminateApplication
      * Loads a revision'ed asset file, making use of gulp-rev
      * This is a copycat of L5's Elixir, but catered to our directory structure.
      *
-     * @throws InvalidArgumentException
+     * @param string $file
+     * @param string $manifestFile
+     *
+     * @throws \InvalidArgumentException
+     *
+     * @return string
      */
-    public function rev(string $file, string $manifestFile = null): string
+    public function rev($file, $manifestFile = null)
     {
         static $manifest = null;
 
@@ -58,11 +67,40 @@ class Application extends IlluminateApplication
      * Otherwise, just use a full URL to the asset.
      *
      * @param string $name The additional resource name/path.
+     *
+     * @return string
      */
-    public function staticUrl(?string $name = null): string
+    public function staticUrl($name = null)
     {
         $cdnUrl = trim(config('koel.cdn.url'), '/ ');
 
         return $cdnUrl ? $cdnUrl.'/'.trim(ltrim($name, '/')) : trim(asset($name));
+    }
+
+    /**
+     * Get the latest version number of Koel from GitHub.
+     *
+     * @param Client $client
+     *
+     * @return string
+     */
+    public function getLatestVersion(Client $client = null)
+    {
+        return Cache::remember('latestKoelVersion', 1 * 24 * 60, function () use ($client) {
+            $client = $client ?: new Client();
+
+            try {
+                $v = json_decode(
+                    $client->get('https://api.github.com/repos/phanan/koel/tags')
+                        ->getBody()
+                )[0]->name;
+
+                return $v;
+            } catch (Exception $e) {
+                Log::error($e);
+
+                return self::KOEL_VERSION;
+            }
+        });
     }
 }

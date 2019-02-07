@@ -2,15 +2,30 @@
 
 namespace App\Providers;
 
-use App\Services\YouTubeService;
+use App\Services\YouTube;
 use Illuminate\Support\ServiceProvider;
 
 class YouTubeServiceProvider extends ServiceProvider
 {
-    public function register(): void
+    /**
+     * Bootstrap the application services.
+     *
+     * @return void
+     */
+    public function boot()
     {
-        app()->singleton('YouTube', static function (): YouTubeService {
-            return app(YouTubeService::class);
+        //
+    }
+
+    /**
+     * Register the application services.
+     *
+     * @return void
+     */
+    public function register()
+    {
+        app()->singleton('YouTube', function () {
+            return new YouTube();
         });
     }
 }

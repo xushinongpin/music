@@ -15,8 +15,12 @@ class Util
 
     /**
      * Detects higher UTF encoded strings.
+     *
+     * @param string $str
+     *
+     * @return string|false
      */
-    public function detectUTFEncoding(string $str): ?string
+    public function detectUTFEncoding($str)
     {
         switch (substr($str, 0, 2)) {
             case UTF16_BIG_ENDIAN_BOM:
@@ -37,6 +41,6 @@ class Util
                 return 'UTF-32LE';
         }
 
-        return null;
+        return false;
     }
 }

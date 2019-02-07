@@ -2,27 +2,21 @@
 
 namespace App\Http\Controllers\API\Interaction;
 
-use App\Http\Requests\API\SongLikeRequest;
+use App\Models\Interaction;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
-/**
- * @group 3. Song interactions
- */
 class LikeController extends Controller
 {
     /**
-     * Like or unlike a song.
+     * Like or unlike a song as the currently authenticated user.
      *
-     * An "interaction" record including the song and current user's data will be returned.
-     *
-     * @bodyParam song string required The ID of the song. Example: 0146d01afb742b01f28ab8b556f9a75d
-     *
-     * @responseFile responses/interaction.json
+     * @param Request $request
      *
      * @return JsonResponse
      */
-    public function store(SongLikeRequest $request)
+    public function store(Request $request)
     {
-        return response()->json($this->interactionService->toggleLike($request->song, $request->user()));
+        return response()->json(Interaction::toggleLike($request->song, $request->user()));
     }
 }

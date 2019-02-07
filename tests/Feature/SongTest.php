@@ -7,23 +7,18 @@ use App\Models\Album;
 use App\Models\Artist;
 use App\Models\Song;
 use App\Models\User;
-use Exception;
+use Illuminate\Foundation\Testing\WithoutMiddleware;
 
 class SongTest extends TestCase
 {
-    /**
-     * @throws Exception
-     */
+    use WithoutMiddleware;
+
     public function setUp()
     {
         parent::setUp();
-
         $this->createSampleMediaSet();
     }
 
-    /**
-     * @throws Exception
-     */
     public function testSingleUpdateAllInfoNoCompilation()
     {
         $this->expectsEvents(LibraryChanged::class);
@@ -200,6 +195,7 @@ class SongTest extends TestCase
                     'compilationState' => 2,
                 ],
             ], $user)
+//            ->seeText('jaja')
             ->seeStatusCode(200);
 
         $compilationAlbum = Album::whereArtistIdAndName(Artist::VARIOUS_ID, 'Two by Two')->first();
@@ -266,7 +262,7 @@ class SongTest extends TestCase
         ]);
 
         // Case 3: Change compilation state and artist
-        // Remember to set the compilation state back to 1
+        // Remember to set the compliation state back to 1
         $this->putAsUser('/api/songs', [
                 'songs' => [$song->id],
                 'data' => [
@@ -303,9 +299,6 @@ class SongTest extends TestCase
         ]);
     }
 
-    /**
-     * @throws Exception
-     */
     public function testDeletingByChunk()
     {
         $this->assertNotEquals(0, Song::count());

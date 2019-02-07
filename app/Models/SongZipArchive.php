@@ -6,7 +6,6 @@ use App\Facades\Download;
 use Exception;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
-use RuntimeException;
 use ZipArchive;
 
 class SongZipArchive
@@ -34,43 +33,49 @@ class SongZipArchive
     /**
      * @param string $path
      *
-     * @throws RuntimeException
+     * @throws Exception
      */
     public function __construct($path = '')
     {
         if (!class_exists('ZipArchive')) {
-            throw new RuntimeException('Downloading multiple files requires ZipArchive module.');
+            throw new Exception('Downloading multiple files requires ZipArchive module.');
         }
 
-        if ($path) {
-            $this->path = $path;
-        } else {
-            // We use system's temp dir instead of storage_path() here, so that the generated files
-            // can be cleaned up automatically after server reboot.
-            $this->path = sprintf('%s%skoel-download-%s.zip', sys_get_temp_dir(), DIRECTORY_SEPARATOR, uniqid());
-        }
+        // We use system's temp dir instead of storage_path() here, so that the generated files
+        // can be cleaned up automatically after server reboot.
+        $this->path = $path ?: $path = rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.'koel-download-'.uniqid().'.zip';
 
         $this->archive = new ZipArchive();
 
         if ($this->archive->open($this->path, ZipArchive::CREATE) !== true) {
-            throw new RuntimeException('Cannot create zip file.');
+            throw new Exception('Cannot create zip file.');
         }
     }
 
     /**
      * Add multiple songs into the archive.
+     *
+     * @param Collection $songs
+     *
+     * @return $this
      */
-    public function addSongs(Collection $songs): self
+    public function addSongs(Collection $songs)
     {
-        $songs->each([$this, 'addSong']);
+        $songs->each(function ($song) {
+            $this->addSong($song);
+        });
 
         return $this;
     }
 
     /**
      * Add a single song into the archive.
+     *
+     * @param Song $song
+     *
+     * @return $this
      */
-    public function addSong(Song $song): self
+    public function addSong(Song $song)
     {
         try {
             $path = Download::fromSong($song);
@@ -99,8 +104,10 @@ class SongZipArchive
 
     /**
      * Finish (close) the archive.
+     *
+     * @return $this
      */
-    public function finish(): self
+    public function finish()
     {
         $this->archive->close();
 
@@ -109,13 +116,18 @@ class SongZipArchive
 
     /**
      * Get the path to the archive.
+     *
+     * @return string
      */
-    public function getPath(): string
+    public function getPath()
     {
         return $this->path;
     }
 
-    public function getArchive(): ZipArchive
+    /**
+     * @return ZipArchive
+     */
+    public function getArchive()
     {
         return $this->archive;
     }

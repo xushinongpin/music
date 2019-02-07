@@ -4,10 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-/**
- * @property string $key
- * @property mixed  $value
- */
 class Setting extends Model
 {
     protected $primaryKey = 'key';
@@ -21,9 +17,9 @@ class Setting extends Model
      *
      * @param string $key
      *
-     * @return mixed|string
+     * @return mixed
      */
-    public static function get(string $key)
+    public static function get($key)
     {
         if ($record = self::find($key)) {
             return $record->value;
@@ -39,7 +35,7 @@ class Setting extends Model
      *                            in which case $value will be discarded.
      * @param mixed        $value
      */
-    public static function set($key, $value = null): void
+    public static function set($key, $value = null)
     {
         if (is_array($key)) {
             foreach ($key as $k => $v) {
@@ -58,7 +54,7 @@ class Setting extends Model
      *
      * @param mixed $value
      */
-    public function setValueAttribute($value): void
+    public function setValueAttribute($value)
     {
         $this->attributes['value'] = serialize($value);
     }

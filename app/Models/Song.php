@@ -4,27 +4,30 @@ namespace App\Models;
 
 use App\Events\LibraryChanged;
 use App\Traits\SupportsDeleteWhereIDsNotIn;
+use AWS;
+use Aws\AwsClient;
+use Cache;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
-use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Support\Collection;
+use Lastfm;
+use YouTube;
 
 /**
- * @property string $path
- * @property string $title
- * @property Album  $album
- * @property Artist $artist
- * @property string[] $s3_params
- * @property float  $length
- * @property string $lyrics
- * @property int    $track
- * @property int    $disc
- * @property int    $album_id
- * @property string $id
- * @property int    $artist_id
- * @property int    $mtime
+ * @property string path
+ * @property string title
+ * @property Album  album
+ * @property Artist artist
+ * @property string s3_params
+ * @property float  length
+ * @property string lyrics
+ * @property int    track
+ * @property int    disc
+ * @property int    album_id
+ * @property int    id
+ * @property int    artist_id
  */
 class Song extends Model
 {
@@ -58,39 +61,92 @@ class Song extends Model
      */
     public $incrementing = false;
 
-    public function artist(): BelongsTo
+    /**
+     * A song belongs to an artist.
+     *
+     * @return BelongsTo
+     */
+    public function artist()
     {
         return $this->belongsTo(Artist::class);
     }
 
-    public function album(): BelongsTo
+    /**
+     * A song belongs to a album.
+     *
+     * @return BelongsTo
+     */
+    public function album()
     {
         return $this->belongsTo(Album::class);
     }
 
-    public function playlists(): BelongsToMany
+    /**
+     * A song can belong to many playlists.
+     *
+     * @return BelongsToMany
+     */
+    public function playlists()
     {
         return $this->belongsToMany(Playlist::class);
     }
 
-    public function interactions(): HasMany
+    /**
+     * Scrobble the song using Last.fm service.
+     *
+     * @param User   $user
+     * @param string $timestamp The UNIX timestamp in which the song started playing.
+     *
+     * @return mixed
+     */
+    public function scrobble(User $user, $timestamp)
     {
-        return $this->hasMany(Interaction::class);
+        // Don't scrobble the unknown guys. No one knows them.
+        if ($this->artist->is_unknown) {
+            return false;
+        }
+
+        // If the current user hasn't connected to Last.fm, don't do shit.
+        if (!$user->connectedToLastfm()) {
+            return false;
+        }
+
+        return Lastfm::scrobble(
+            $this->artist->name,
+            $this->title,
+            $timestamp,
+            $this->album->name === Album::UNKNOWN_NAME ? '' : $this->album->name,
+            $user->lastfm_session_key
+        );
+    }
+
+    /**
+     * Get a Song record using its path.
+     *
+     * @param string $path
+     *
+     * @return Song|null
+     */
+    public static function byPath($path)
+    {
+        return self::find(File::getHash($path));
     }
 
     /**
      * Update song info.
      *
-     * @param string[] $ids
-     * @param string[] $data The data array, with these supported fields:
-     *                       - title
-     *                       - artistName
-     *                       - albumName
-     *                       - lyrics
-     *                       All of these are optional, in which case the info will not be changed
-     *                       (except for lyrics, which will be emptied).
+     * @param array $ids
+     * @param array $data The data array, with these supported fields:
+     *                    - title
+     *                    - artistName
+     *                    - albumName
+     *                    - lyrics
+     *                    All of these are optional, in which case the info will not be changed
+     *                    (except for lyrics, which will be emptied).
+     *
+     * @return array
      */
-    public static function updateInfo(array $ids, array $data): Collection
+    public static function updateInfo($ids, $data)
     {
         /*
          * A collection of the updated songs.
@@ -123,17 +179,27 @@ class Song extends Model
             event(new LibraryChanged());
         }
 
-        return $updatedSongs;
+        return [
+            'artists' => Artist::whereIn('id', $updatedSongs->pluck('artist_id'))->get(),
+            'albums' => Album::whereIn('id', $updatedSongs->pluck('album_id'))->get(),
+            'songs' => $updatedSongs,
+        ];
     }
 
-    public function updateSingle(
-        string $title,
-        string $albumName,
-        string $artistName,
-        string $lyrics,
-        int $track,
-        int $compilationState
-    ): self {
+    /**
+     * Update a single song's info.
+     *
+     * @param string $title
+     * @param string $albumName
+     * @param string $artistName
+     * @param string $lyrics
+     * @param int    $track
+     * @param int    $compilationState
+     *
+     * @return self
+     */
+    public function updateSingle($title, $albumName, $artistName, $lyrics, $track, $compilationState)
+    {
         if ($artistName === Artist::VARIOUS_NAME) {
             // If the artist name is "Various Artists", it's a compilation song no matter what.
             $compilationState = 1;
@@ -176,8 +242,13 @@ class Song extends Model
 
     /**
      * Scope a query to only include songs in a given directory.
+     *
+     * @param Builder $query
+     * @param string  $path  Full path of the directory
+     *
+     * @return Builder
      */
-    public function scopeInDirectory(Builder $query, string $path): Builder
+    public function scopeInDirectory($query, $path)
     {
         // Make sure the path ends with a directory separator.
         $path = rtrim(trim($path), DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR;
@@ -186,10 +257,70 @@ class Song extends Model
     }
 
     /**
+     * Get all songs favored by a user.
+     *
+     * @param User $user
+     * @param bool $toArray
+     *
+     * @return Collection|array
+     */
+    public static function getFavorites(User $user, $toArray = false)
+    {
+        $songs = Interaction::whereUserIdAndLike($user->id, true)
+            ->with('song')
+            ->get()
+            ->pluck('song');
+
+        return $toArray ? $songs->toArray() : $songs;
+    }
+
+    /**
+     * Get the song's Object Storage url for streaming or downloading.
+     *
+     * @param AwsClient $s3
+     *
+     * @return string
+     */
+    public function getObjectStoragePublicUrl(AwsClient $s3 = null)
+    {
+        return Cache::remember("OSUrl/{$this->id}", 60, function () use ($s3) {
+            if (!$s3) {
+                $s3 = AWS::createClient('s3');
+            }
+
+            $cmd = $s3->getCommand('GetObject', [
+                'Bucket' => $this->s3_params['bucket'],
+                'Key' => $this->s3_params['key'],
+            ]);
+
+            // Here we specify that the request is valid for 1 hour.
+            // We'll also cache the public URL for future reuse.
+            $request = $s3->createPresignedRequest($cmd, '+1 hour');
+            $url = (string) $request->getUri();
+
+            return $url;
+        });
+    }
+
+    /**
+     * Get the YouTube videos related to this song.
+     *
+     * @param string $youTubePageToken The YouTube page token, for pagination purpose.
+     *
+     * @return false|object
+     */
+    public function getRelatedYouTubeVideos($youTubePageToken = '')
+    {
+        return YouTube::searchVideosRelatedToSong($this, $youTubePageToken);
+    }
+
+    /**
      * Sometimes the tags extracted from getID3 are HTML entity encoded.
      * This makes sure they are always sane.
+     *
+     * @param string $value
      */
-    public function setTitleAttribute(string $value): void
+    public function setTitleAttribute($value)
     {
         $this->attributes['title'] = html_entity_decode($value);
     }
@@ -197,16 +328,24 @@ class Song extends Model
     /**
      * Some songs don't have a title.
      * Fall back to the file name (without extension) for such.
+     *
+     * @param string $value
+     *
+     * @return string
      */
-    public function getTitleAttribute(?string $value): string
+    public function getTitleAttribute($value)
     {
         return $value ?: pathinfo($this->path, PATHINFO_FILENAME);
     }
 
     /**
      * Prepare the lyrics for displaying.
+     *
+     * @param $value
+     *
+     * @return string
      */
-    public function getLyricsAttribute(string $value): string
+    public function getLyricsAttribute($value)
     {
         // We don't use nl2br() here, because the function actually preserves line breaks -
         // it just _appends_ a "<br />" after each of them. This would cause our client
@@ -217,12 +356,12 @@ class Song extends Model
     /**
      * Get the bucket and key name of an S3 object.
      *
-     * @return string[]|null
+     * @return bool|array
      */
-    public function getS3ParamsAttribute(): ?array
+    public function getS3ParamsAttribute()
     {
         if (!preg_match('/^s3:\\/\\/(.*)/', $this->path, $matches)) {
-            return null;
+            return false;
         }
 
         list($bucket, $key) = explode('/', $matches[1], 2);
@@ -232,6 +371,8 @@ class Song extends Model
 
     /**
      * Return the ID of the song when it's converted to string.
+     *
+     * @return string
      */
     public function __toString()
     {

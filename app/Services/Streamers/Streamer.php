@@ -16,13 +16,12 @@ class Streamer
      */
     protected $contentType;
 
-    public function __construct()
-    {
-        // Turn off error reporting to make sure our stream isn't interfered.
-        @error_reporting(0);
-    }
-
-    public function setSong(Song $song): void
+    /**
+     * BaseStreamer constructor.
+     *
+     * @param $song Song
+     */
+    public function __construct(Song $song)
     {
         $this->song = $song;
 
@@ -30,8 +29,9 @@ class Streamer
 
         // Hard code the content type instead of relying on PHP's fileinfo()
         // or even Symfony's MIMETypeGuesser, since they appear to be wrong sometimes.
-        if (!$this->song->s3_params) {
-            $this->contentType = 'audio/'.pathinfo($this->song->path, PATHINFO_EXTENSION);
-        }
+        $this->contentType = 'audio/'.pathinfo($this->song->path, PATHINFO_EXTENSION);
+
+        // Turn off error reporting to make sure our stream isn't interfered.
+        @error_reporting(0);
     }
 }
